@@ -2,8 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Tetrimino : MonoBehaviour
-{
+public class Tetrimino : MonoBehaviour {
     public float fallTime = 1f;
     private float previousTime = 0f;
 
@@ -12,9 +11,13 @@ public class Tetrimino : MonoBehaviour
 
     private int width = 10;
     private int height = 24;
+    private int deadLine = 20;
+
+    private GameManager game;
 
     void Start() {
         previousIndex = currentIndex;
+        game = FindObjectOfType<GameManager>();
     }
 
     void Update() {
@@ -37,20 +40,27 @@ public class Tetrimino : MonoBehaviour
 
             if (!canMove()) {
                 transform.position += Vector3.up;
-                
+
                 AddtoGrid();
-                FindObjectOfType<GameManager>().CreateNextBlock();
+
+                CheckLine();
+
+                if (!IsGameOver()) {
+                    game.CreateNextBlock();
+                }
+                else {
+                    game.GameOver();
+                }
 
                 this.enabled = false;
             }
 
-            
             previousTime = Time.time;
         }
         else if (Input.GetKeyDown(KeyCode.Z)) {
             currentIndex++;
 
-            if(currentIndex >= transform.childCount) {
+            if (currentIndex >= transform.childCount) {
                 currentIndex = 0;
             }
 
@@ -81,18 +91,36 @@ public class Tetrimino : MonoBehaviour
 
             previousIndex = currentIndex;
         }
+        else if (Input.GetKeyDown(KeyCode.Space)) {
+            while (canMove()) {
+                transform.position += Vector3.down;
+            }
+            transform.position += Vector3.up;
+
+            AddtoGrid();
+
+            CheckLine();
+
+            if (!IsGameOver()) {
+                game.CreateNextBlock();
+            }
+            else {
+                game.GameOver();
+            }
+            this.enabled = false;
+        }
     }
 
     bool canMove() {
-        foreach(Transform children in transform.GetChild(currentIndex)) {
+        foreach (Transform children in transform.GetChild(currentIndex)) {
             int FlooredX = Mathf.FloorToInt(children.transform.position.x);
             int FlooredY = Mathf.FloorToInt(children.transform.position.y);
 
-            if(FlooredX < 0 || FlooredX >= width || FlooredY < 0) {
+            if (FlooredX < 0 || FlooredX >= width || FlooredY < 0) {
                 return false;
             }
-            
-            if(GameManager.grid[FlooredX, FlooredY] != null) {
+
+            if (GameManager.grid[FlooredX, FlooredY] != null) {
                 return false;
             }
         }
@@ -109,17 +137,55 @@ public class Tetrimino : MonoBehaviour
         }
     }
 
-    bool CheckLine() {
+    void CheckLine() {
         foreach (Transform children in transform.GetChild(currentIndex)) {
             int FlooredY = Mathf.FloorToInt(children.transform.position.y);
 
-            for(int i = 0; i < width; i++) {
-                if(GameManager.grid[i, FlooredY] == null) {
-                    return false;
+            while (HasLines(FlooredY)) {
+                GameManager.score += 100;
+                DeleteLine(FlooredY);
+                DownLines(FlooredY);
+            }
+        }
+    }
+
+    bool HasLines(int y) {
+        for (int i = 0; i < width; i++) {
+            if (GameManager.grid[i, y] == null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void DeleteLine(int y) {
+        for (int i = 0; i < width; i++) {
+            Destroy(GameManager.grid[i, y].gameObject);
+            GameManager.grid[i, y] = null;
+        }
+    }
+
+    void DownLines(int y) {
+        for (int i = y + 1; i < height; i++) {
+            for (int j = 0; j < width; j++) {
+                if (GameManager.grid[j, i] != null) {
+                    GameManager.grid[j, i - 1] = GameManager.grid[j, i];
+                    GameManager.grid[j, i] = null;
+                    GameManager.grid[j, i - 1].transform.position += Vector3.down;
                 }
             }
         }
+    }
 
-        return true;
+    bool IsGameOver() {
+        foreach (Transform children in transform.GetChild(currentIndex)) {
+            int FlooredY = Mathf.FloorToInt(children.transform.position.y);
+
+            if (FlooredY >= deadLine) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
